@@ -250,12 +250,22 @@ class AssessmentTimelineCodecTest {
     }
 
     @Test
-    fun confidenceFloatBoundariesRoundTripWithoutSemanticLoss() {
+    fun importantFloatBoundariesRoundTripWithoutSemanticLoss() {
         listOf(0f, 1f, 0.375f).forEach { confidence ->
             val event = fullEvent("confidence-$confidence", 0, AssessmentEventType.CORRECT)
-                .copy(confidence = confidence)
+                .copy(
+                    confidence = confidence,
+                    signalQuality = confidence,
+                    measuredAmplitude = confidence,
+                    measuredVelocity = confidence,
+                    accentStrength = confidence
+                )
             val decoded = decode(timelineOf(event)).snapshot().single()
             assertEquals(confidence, decoded.confidence)
+            assertEquals(confidence, decoded.signalQuality)
+            assertEquals(confidence, decoded.measuredAmplitude)
+            assertEquals(confidence, decoded.measuredVelocity)
+            assertEquals(confidence, decoded.accentStrength)
         }
     }
 
