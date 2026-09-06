@@ -5,6 +5,7 @@ import com.example.model.NoteEvent
 import com.example.model.PracticeInputMode
 import com.example.model.PracticeMode
 import com.example.model.PracticeSessionContext
+import com.example.model.PracticeSessionLifecycle
 import com.example.util.HapticHelper
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -81,10 +82,17 @@ class PracticeEngine(
     private var restartCount: Int = 0
     private var finalizedCallbackSessionId: String? = null
     private var timelineStartNanos: Long? = null
+    private var recoveredTimelinePending = false
     private val deadlineScheduler = DeadlineScheduler(clock)
+    private val timelineSubscription = acousticEvaluator.timeline.subscribe { event ->
+        onAssessmentTimelineEvent?.invoke(event)
+    }
 
     var onRoundCompleted: ((HandpanPattern, Int, Int) -> Unit)? = null
     var onAssessmentFinalized: ((com.example.model.FinalizedAssessment) -> Unit)? = null
+    var onAssessmentStarted: ((PracticeSessionContext, Int, PracticeInputMode) -> Unit)? = null
+    var onAssessmentLifecycleChanged: ((PracticeSessionContext, PracticeSessionLifecycle) -> Unit)? = null
+    var onAssessmentTimelineEvent: ((com.example.model.AssessmentTimelineEvent) -> Unit)? = null
     var onTimelineBeat: ((PracticeTimelinePosition, List<NoteEvent>, Long) -> Unit)? = null
 
     fun loadPattern(pattern: HandpanPattern) {
@@ -115,6 +123,33 @@ class PracticeEngine(
             )
         }
         restartCount = 0
+    }
+
+    fun restoreAssessment(
+        pattern: HandpanPattern,
+        context: PracticeSessionContext,
+        timeline: com.example.model.AssessmentTimeline,
+        inputMode: PracticeInputMode,
+        bpm: Int
+    ) {
+        loadPattern(pattern)
+        sessionContext = context
+        restartCount = context.restartCount
+        val restoredBeat = timeline.snapshot().mapNotNull { it.beatPosition }.maxOrNull() ?: 0.0
+        resumeFromBeat = restoredBeat
+        setInputMode(inputMode)
+        _uiState.update {
+            it.copy(
+                phase = PracticePhase.PAUSED,
+                bpm = bpm,
+                isPlaying = false,
+                currentBeatAbsolute = restoredBeat,
+                timelinePosition = practiceTimeline?.positionAtBeat(restoredBeat),
+                acousticAssessmentEnabled = inputMode == PracticeInputMode.REAL_HANDPAN
+            )
+        }
+        acousticEvaluator.timeline.restore(context.sessionId, timeline.snapshot())
+        recoveredTimelinePending = true
     }
 
     fun togglePlay() {
@@ -148,6 +183,7 @@ class PracticeEngine(
 
         if (isResuming) {
             acousticEvaluator.resumeAssessment()
+            sessionContext?.let { onAssessmentLifecycleChanged?.invoke(it, PracticeSessionLifecycle.ACTIVE) }
         }
 
         playbackJob = engineScope.launch {
@@ -169,6 +205,7 @@ class PracticeEngine(
         playbackJob = null
         acousticEvaluator.pauseAssessment()
         acousticEvaluator.setPracticeRunning(false)
+        sessionContext?.let { onAssessmentLifecycleChanged?.invoke(it, PracticeSessionLifecycle.PAUSED) }
         _uiState.update {
             it.copy(
                 isPlaying = false,
@@ -242,6 +279,7 @@ class PracticeEngine(
 
     fun release() {
         stop()
+        timelineSubscription.close()
         engineJob.cancel()
     }
 
@@ -531,17 +569,23 @@ class PracticeEngine(
 
     private fun startAcousticAssessment(pattern: HandpanPattern) {
         if (!acousticEvaluator.state.value.isEnabled) return
+        val isNewSession = sessionContext == null
         val context = sessionContext ?: PracticeSessionContext.start(
             patternId = pattern.id,
             startTimestampNanos = clock.nowNanos(),
             restartCount = restartCount
         ).also { sessionContext = it }
+        if (isNewSession) {
+            onAssessmentStarted?.invoke(context, _uiState.value.effectiveBpm, _uiState.value.inputMode)
+        }
         acousticEvaluator.startAssessment(
             context = context,
             pattern = pattern,
             scaleConfig = audioEngine.getPitchConfig(),
-            bpm = _uiState.value.effectiveBpm
+            bpm = _uiState.value.effectiveBpm,
+            preserveTimeline = recoveredTimelinePending
         )
+        recoveredTimelinePending = false
     }
 
     @Synchronized

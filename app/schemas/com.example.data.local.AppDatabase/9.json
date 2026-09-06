@@ -1,0 +1,881 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 9,
+    "identityHash": "78e60b9f2b17e024d546d15ff249d48b",
+    "entities": [
+      {
+        "tableName": "patterns",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `title` TEXT NOT NULL, `description` TEXT NOT NULL, `bpm` INTEGER NOT NULL, `timeSignatureNumerator` INTEGER NOT NULL, `timeSignatureDenominator` INTEGER NOT NULL, `bars` INTEGER NOT NULL, `eventsJson` TEXT NOT NULL, `difficulty` TEXT NOT NULL, `category` TEXT NOT NULL, `isCustom` INTEGER NOT NULL, `recommendedSubdivision` TEXT NOT NULL, `createdAt` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "title",
+            "columnName": "title",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "description",
+            "columnName": "description",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "bpm",
+            "columnName": "bpm",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "timeSignatureNumerator",
+            "columnName": "timeSignatureNumerator",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "timeSignatureDenominator",
+            "columnName": "timeSignatureDenominator",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "bars",
+            "columnName": "bars",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "eventsJson",
+            "columnName": "eventsJson",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "difficulty",
+            "columnName": "difficulty",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "category",
+            "columnName": "category",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isCustom",
+            "columnName": "isCustom",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "recommendedSubdivision",
+            "columnName": "recommendedSubdivision",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "practice_progress",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`patternId` TEXT NOT NULL, `practiceCount` INTEGER NOT NULL, `lastPracticedTimestamp` INTEGER NOT NULL, `highestBpmAchieved` INTEGER NOT NULL, `lastUsedBpm` INTEGER NOT NULL, `totalTimeSeconds` INTEGER NOT NULL, `completedRounds` INTEGER NOT NULL, PRIMARY KEY(`patternId`))",
+        "fields": [
+          {
+            "fieldPath": "patternId",
+            "columnName": "patternId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "practiceCount",
+            "columnName": "practiceCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastPracticedTimestamp",
+            "columnName": "lastPracticedTimestamp",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "highestBpmAchieved",
+            "columnName": "highestBpmAchieved",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastUsedBpm",
+            "columnName": "lastUsedBpm",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "totalTimeSeconds",
+            "columnName": "totalTimeSeconds",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "completedRounds",
+            "columnName": "completedRounds",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "patternId"
+          ]
+        }
+      },
+      {
+        "tableName": "lesson_progress",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`lessonId` TEXT NOT NULL, `isCompleted` INTEGER NOT NULL, `stars` INTEGER NOT NULL, `bestScore` INTEGER NOT NULL, `attempts` INTEGER NOT NULL, `lastPracticedAt` INTEGER NOT NULL, PRIMARY KEY(`lessonId`))",
+        "fields": [
+          {
+            "fieldPath": "lessonId",
+            "columnName": "lessonId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isCompleted",
+            "columnName": "isCompleted",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "stars",
+            "columnName": "stars",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "bestScore",
+            "columnName": "bestScore",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "attempts",
+            "columnName": "attempts",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastPracticedAt",
+            "columnName": "lastPracticedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "lessonId"
+          ]
+        }
+      },
+      {
+        "tableName": "recording_tracks",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `title` TEXT NOT NULL, `date` TEXT NOT NULL, `scaleId` TEXT NOT NULL, `durationMs` INTEGER NOT NULL, `eventsJson` TEXT NOT NULL, `bpm` INTEGER NOT NULL, `timeSignature` TEXT NOT NULL, `timelineEventsJson` TEXT NOT NULL, `createdAt` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "title",
+            "columnName": "title",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "date",
+            "columnName": "date",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "scaleId",
+            "columnName": "scaleId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "durationMs",
+            "columnName": "durationMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "eventsJson",
+            "columnName": "eventsJson",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "bpm",
+            "columnName": "bpm",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "timeSignature",
+            "columnName": "timeSignature",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "timelineEventsJson",
+            "columnName": "timelineEventsJson",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "assessments",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`sessionId` TEXT NOT NULL, `patternId` TEXT NOT NULL, `bpm` INTEGER NOT NULL, `completedAtEpochMs` INTEGER NOT NULL, `durationMs` INTEGER NOT NULL, `activeDurationMs` INTEGER NOT NULL, `validity` TEXT NOT NULL, `qualityScore` REAL NOT NULL, `signalQuality` REAL NOT NULL, `validEventCount` INTEGER NOT NULL, `eventCount` INTEGER NOT NULL, `restartCount` INTEGER NOT NULL, `correctCount` INTEGER NOT NULL, `wrongCount` INTEGER NOT NULL, `missedCount` INTEGER NOT NULL, `extraCount` INTEGER NOT NULL, `unknownCount` INTEGER NOT NULL, `timingScore` REAL NOT NULL, `pitchScore` REAL NOT NULL, `noteAccuracy` REAL NOT NULL, `overallPerformance` REAL NOT NULL, `consistencyScore` REAL NOT NULL, PRIMARY KEY(`sessionId`))",
+        "fields": [
+          {
+            "fieldPath": "sessionId",
+            "columnName": "sessionId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "patternId",
+            "columnName": "patternId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "bpm",
+            "columnName": "bpm",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "completedAtEpochMs",
+            "columnName": "completedAtEpochMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "durationMs",
+            "columnName": "durationMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "activeDurationMs",
+            "columnName": "activeDurationMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "validity",
+            "columnName": "validity",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "qualityScore",
+            "columnName": "qualityScore",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "signalQuality",
+            "columnName": "signalQuality",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "validEventCount",
+            "columnName": "validEventCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "eventCount",
+            "columnName": "eventCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "restartCount",
+            "columnName": "restartCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "correctCount",
+            "columnName": "correctCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "wrongCount",
+            "columnName": "wrongCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "missedCount",
+            "columnName": "missedCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "extraCount",
+            "columnName": "extraCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "unknownCount",
+            "columnName": "unknownCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "timingScore",
+            "columnName": "timingScore",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pitchScore",
+            "columnName": "pitchScore",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "noteAccuracy",
+            "columnName": "noteAccuracy",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "overallPerformance",
+            "columnName": "overallPerformance",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "consistencyScore",
+            "columnName": "consistencyScore",
+            "affinity": "REAL",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "sessionId"
+          ]
+        }
+      },
+      {
+        "tableName": "assessment_evidence",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`sessionId` TEXT NOT NULL, `validity` TEXT NOT NULL, `validEvidenceCount` INTEGER NOT NULL, `overallPerformance` REAL NOT NULL, `timingScore` REAL NOT NULL, `pitchScore` REAL NOT NULL, `noteAccuracy` REAL NOT NULL, `completionRate` REAL NOT NULL, `missRate` REAL NOT NULL, `falseStrikeRate` REAL NOT NULL, `consistencyScore` REAL NOT NULL, `confidenceScore` REAL NOT NULL, `rhythmScore` REAL NOT NULL, `dynamicsScore` REAL NOT NULL, `speedScore` REAL NOT NULL, `techniqueScore` REAL NOT NULL, PRIMARY KEY(`sessionId`))",
+        "fields": [
+          {
+            "fieldPath": "sessionId",
+            "columnName": "sessionId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "validity",
+            "columnName": "validity",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "validEvidenceCount",
+            "columnName": "validEvidenceCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "overallPerformance",
+            "columnName": "overallPerformance",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "timingScore",
+            "columnName": "timingScore",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pitchScore",
+            "columnName": "pitchScore",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "noteAccuracy",
+            "columnName": "noteAccuracy",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "completionRate",
+            "columnName": "completionRate",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "missRate",
+            "columnName": "missRate",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "falseStrikeRate",
+            "columnName": "falseStrikeRate",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "consistencyScore",
+            "columnName": "consistencyScore",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "confidenceScore",
+            "columnName": "confidenceScore",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rhythmScore",
+            "columnName": "rhythmScore",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dynamicsScore",
+            "columnName": "dynamicsScore",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "speedScore",
+            "columnName": "speedScore",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "techniqueScore",
+            "columnName": "techniqueScore",
+            "affinity": "REAL",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "sessionId"
+          ]
+        }
+      },
+      {
+        "tableName": "processed_assessments",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`sessionId` TEXT NOT NULL, PRIMARY KEY(`sessionId`))",
+        "fields": [
+          {
+            "fieldPath": "sessionId",
+            "columnName": "sessionId",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "sessionId"
+          ]
+        }
+      },
+      {
+        "tableName": "assessment_sessions",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`sessionId` TEXT NOT NULL, `patternId` TEXT NOT NULL, `exerciseId` TEXT, `sourceId` TEXT, `sourceHash` TEXT, `lifecycle` TEXT NOT NULL, `startedAtEpochMs` INTEGER NOT NULL, `lastUpdatedAtEpochMs` INTEGER NOT NULL, `elapsedDurationMs` INTEGER NOT NULL, `activeDurationMs` INTEGER NOT NULL, `accumulatedPausedDurationMs` INTEGER NOT NULL, `pauseStartedAtEpochMs` INTEGER, `restartCount` INTEGER NOT NULL, `bpm` INTEGER NOT NULL, `inputMode` TEXT NOT NULL, `assessmentSchemaVersion` INTEGER NOT NULL, `eventSchemaVersion` INTEGER NOT NULL, `evaluationAlgorithmVersion` INTEGER NOT NULL, `timelinePayload` TEXT NOT NULL, `timelineRevision` INTEGER NOT NULL, `timelineChecksum` TEXT NOT NULL, `eventCount` INTEGER NOT NULL, `lastEventOrdinal` INTEGER NOT NULL, `finalizationState` TEXT NOT NULL, `finalizedAtEpochMs` INTEGER, `audioContinuityState` TEXT NOT NULL, PRIMARY KEY(`sessionId`))",
+        "fields": [
+          {
+            "fieldPath": "sessionId",
+            "columnName": "sessionId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "patternId",
+            "columnName": "patternId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "exerciseId",
+            "columnName": "exerciseId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "sourceId",
+            "columnName": "sourceId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "sourceHash",
+            "columnName": "sourceHash",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "lifecycle",
+            "columnName": "lifecycle",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startedAtEpochMs",
+            "columnName": "startedAtEpochMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastUpdatedAtEpochMs",
+            "columnName": "lastUpdatedAtEpochMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "elapsedDurationMs",
+            "columnName": "elapsedDurationMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "activeDurationMs",
+            "columnName": "activeDurationMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "accumulatedPausedDurationMs",
+            "columnName": "accumulatedPausedDurationMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pauseStartedAtEpochMs",
+            "columnName": "pauseStartedAtEpochMs",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "restartCount",
+            "columnName": "restartCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "bpm",
+            "columnName": "bpm",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "inputMode",
+            "columnName": "inputMode",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "assessmentSchemaVersion",
+            "columnName": "assessmentSchemaVersion",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "eventSchemaVersion",
+            "columnName": "eventSchemaVersion",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "evaluationAlgorithmVersion",
+            "columnName": "evaluationAlgorithmVersion",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "timelinePayload",
+            "columnName": "timelinePayload",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "timelineRevision",
+            "columnName": "timelineRevision",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "timelineChecksum",
+            "columnName": "timelineChecksum",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "eventCount",
+            "columnName": "eventCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastEventOrdinal",
+            "columnName": "lastEventOrdinal",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "finalizationState",
+            "columnName": "finalizationState",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "finalizedAtEpochMs",
+            "columnName": "finalizedAtEpochMs",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "audioContinuityState",
+            "columnName": "audioContinuityState",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "sessionId"
+          ]
+        }
+      },
+      {
+        "tableName": "mastered_skills",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`skill` TEXT NOT NULL, `masteryScore` REAL NOT NULL, `confidence` REAL NOT NULL, `recentPerformance` REAL NOT NULL, `longTermPerformance` REAL NOT NULL, `attemptCount` INTEGER NOT NULL, `lastPracticedEpochMs` INTEGER, `trend` REAL NOT NULL, PRIMARY KEY(`skill`))",
+        "fields": [
+          {
+            "fieldPath": "skill",
+            "columnName": "skill",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "masteryScore",
+            "columnName": "masteryScore",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "confidence",
+            "columnName": "confidence",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "recentPerformance",
+            "columnName": "recentPerformance",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "longTermPerformance",
+            "columnName": "longTermPerformance",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "attemptCount",
+            "columnName": "attemptCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastPracticedEpochMs",
+            "columnName": "lastPracticedEpochMs",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "trend",
+            "columnName": "trend",
+            "affinity": "REAL",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "skill"
+          ]
+        }
+      },
+      {
+        "tableName": "imported_scores",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`sourceId` TEXT NOT NULL, `sourceHash` TEXT NOT NULL, `title` TEXT, `composer` TEXT, `provenanceJson` TEXT NOT NULL, `format` TEXT NOT NULL, `importedAtEpochMs` INTEGER NOT NULL, `recognitionStatus` TEXT NOT NULL, `confidence` REAL NOT NULL, `pageCount` INTEGER, `validationStatus` TEXT NOT NULL, `timelineJson` TEXT NOT NULL, `exerciseId` TEXT, `adaptationStatus` TEXT, `adaptationConfidence` REAL, `omittedRatio` REAL, `transformedRatio` REAL, `adaptationApproval` TEXT NOT NULL, PRIMARY KEY(`sourceId`))",
+        "fields": [
+          {
+            "fieldPath": "sourceId",
+            "columnName": "sourceId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceHash",
+            "columnName": "sourceHash",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "title",
+            "columnName": "title",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "composer",
+            "columnName": "composer",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "provenanceJson",
+            "columnName": "provenanceJson",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "format",
+            "columnName": "format",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "importedAtEpochMs",
+            "columnName": "importedAtEpochMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "recognitionStatus",
+            "columnName": "recognitionStatus",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "confidence",
+            "columnName": "confidence",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pageCount",
+            "columnName": "pageCount",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "validationStatus",
+            "columnName": "validationStatus",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "timelineJson",
+            "columnName": "timelineJson",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "exerciseId",
+            "columnName": "exerciseId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "adaptationStatus",
+            "columnName": "adaptationStatus",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "adaptationConfidence",
+            "columnName": "adaptationConfidence",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "omittedRatio",
+            "columnName": "omittedRatio",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "transformedRatio",
+            "columnName": "transformedRatio",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "adaptationApproval",
+            "columnName": "adaptationApproval",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "sourceId"
+          ]
+        }
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '78e60b9f2b17e024d546d15ff249d48b')"
+    ]
+  }
+}

@@ -18,6 +18,7 @@ import com.example.model.TargetRegistry
 import com.example.model.TimingPolicy
 import com.example.model.TargetMatchType
 import com.example.model.MusicalTarget
+import com.example.model.TargetObligation
 import com.example.model.CanonicalAssessmentMetrics
 import com.example.model.AssessmentSessionValidity
 import com.example.model.AssessmentSessionSummary
@@ -234,16 +235,33 @@ class AcousticPracticeEvaluator(
         context: PracticeSessionContext,
         pattern: HandpanPattern,
         scaleConfig: NotePitchConfig,
-        bpm: Int = pattern.bpm
+        bpm: Int
+    ) {
+        startAssessment(context, pattern, scaleConfig, bpm, preserveTimeline = false)
+    }
+
+    fun startAssessment(
+        context: PracticeSessionContext,
+        pattern: HandpanPattern,
+        scaleConfig: NotePitchConfig,
+        bpm: Int = pattern.bpm,
+        preserveTimeline: Boolean = false
     ) {
         this.scaleConfig = scaleConfig
         sessionContext = context
         assessmentSessionId = context.sessionId
         targetRegistry.clear()
-        timeline.clear()
-        timeline.bindToSession(context.sessionId)
+        if (!preserveTimeline) {
+            timeline.clear()
+            timeline.bindToSession(context.sessionId)
+        } else {
+            require(timeline.sessionId() == context.sessionId) {
+                "Recovered timeline belongs to another assessment session"
+            }
+        }
         beatDurationNanos = MusicalTiming.beatDurationNanos(bpm)
         resetStats()
+        if (preserveTimeline) restoreTimelineState()
         calibrationSession.start()
         practiceRunning = true
 
@@ -449,6 +467,73 @@ class AcousticPracticeEvaluator(
                 lastFeedback = null,
                 calibration = AudioCalibrationSnapshot(),
                 isSummaryDialogVisible = false
+            )
+        }
+    }
+
+    private fun restoreTimelineState() {
+        val events = timeline.snapshot()
+        val results = events.filter { it.eventType != AssessmentEventType.EXPECTED }
+        val restoredTargets = events.mapNotNull { event ->
+            val targetId = event.targetId ?: return@mapNotNull null
+            val patternId = event.patternId ?: return@mapNotNull null
+            val loopId = event.loopId ?: return@mapNotNull null
+            val timestamp = event.expectedTimestampNanos ?: return@mapNotNull null
+            MusicalTarget(
+                identity = MusicalTargetIdentity(
+                    sessionId = event.sessionId,
+                    patternId = patternId,
+                    loopId = loopId,
+                    sequenceIndex = event.sequenceIndex,
+                    targetId = targetId,
+                    beatIndex = event.beatPosition?.toInt() ?: 0,
+                    subdivisionIndex = event.subdivision?.ordinal ?: 0,
+                    expectedTimestampNanos = timestamp,
+                    expectedNotes = event.expectedNotes,
+                    chordId = targetId,
+                    obligations = listOfNotNull(
+                        event.obligationId?.let { obligationId ->
+                            event.expectedNote?.let { note -> TargetObligation(obligationId, note) }
+                        }
+                    )
+                )
+            )
+        }.groupBy { it.identity.targetId }.map { (_, grouped) ->
+            val first = grouped.first()
+            val consumed = events.filter { it.targetId == first.identity.targetId && it.isConsumed }
+                .mapNotNull { it.obligationId }
+                .toSet()
+            first.copy(
+                consumedObligationIds = consumed,
+                consumedNotes = first.effectiveObligations
+                    .filter { it.obligationId in consumed }
+                    .mapTo(linkedSetOf()) { it.noteNumber }
+            )
+        }
+        targetRegistry.restore(restoredTargets, results.map { it.eventId })
+        val score = PracticeScoreCalculator.calculate(events)
+        val metrics = PracticeScoreCalculator.calculateMetrics(events)
+        val timingEvents = results.filter { it.timingResult != null }
+        val averageDeviation = timingEvents.mapNotNull { it.deviationNanos }
+            .average().takeIf { !it.isNaN() }?.div(1_000_000.0)?.toFloat() ?: 0f
+        _state.update {
+            it.copy(
+                totalExpectedNotes = events.count { event -> event.eventType == AssessmentEventType.EXPECTED },
+                totalStrikesEvaluated = results.size,
+                perfectCount = timingEvents.count { it.timingResult?.status == TimingStatus.PERFECT },
+                excellentCount = timingEvents.count { it.timingResult?.status == TimingStatus.EXCELLENT },
+                goodCount = timingEvents.count { it.timingResult?.status == TimingStatus.GOOD },
+                earlyCount = timingEvents.count { it.timingResult?.status == TimingStatus.EARLY },
+                lateCount = timingEvents.count { it.timingResult?.status == TimingStatus.LATE },
+                wrongNoteCount = score.wrongCount,
+                unknownNoteCount = score.unknownCount,
+                extraStrikeCount = score.extraCount,
+                missedCount = score.missedCount,
+                timingAccuracyPercentage = score.timingAccuracyPercentage,
+                noteAccuracyPercentage = score.noteAccuracyPercentage,
+                accuracyPercentage = score.overallAccuracyPercentage,
+                averageTimingDeviationMs = averageDeviation,
+                canonicalMetrics = metrics
             )
         }
     }

@@ -71,6 +71,8 @@ enum class AssessmentSessionValidity {
 enum class PracticeSessionLifecycle {
     ACTIVE,
     PAUSED,
+    FINALIZING,
+    INVALIDATED,
     FINALIZED
 }
 
@@ -126,6 +128,11 @@ class PracticeSessionContext private constructor(
         lifecycle = PracticeSessionLifecycle.FINALIZED
     }
 
+    fun invalidate() {
+        if (lifecycle == PracticeSessionLifecycle.FINALIZED) return
+        lifecycle = PracticeSessionLifecycle.INVALIDATED
+    }
+
     private fun openPauseDuration(): Long {
         val pauseStarted = pauseStartedTimestampNanos ?: return 0L
         val end = endTimestampNanos ?: startTimestampNanos
@@ -144,6 +151,37 @@ class PracticeSessionContext private constructor(
             require(startTimestampNanos >= 0L)
             require(restartCount >= 0)
             return PracticeSessionContext(sessionId, patternId, startTimestampNanos, restartCount)
+        }
+
+        fun restore(
+            sessionId: String,
+            patternId: String,
+            nowTimestampNanos: Long,
+            elapsedDurationNanos: Long,
+            activeDurationNanos: Long,
+            restartCount: Int,
+            lifecycle: PracticeSessionLifecycle
+        ): PracticeSessionContext {
+            require(elapsedDurationNanos >= 0L)
+            require(activeDurationNanos in 0L..elapsedDurationNanos)
+            val context = start(
+                patternId = patternId,
+                startTimestampNanos = (nowTimestampNanos - elapsedDurationNanos).coerceAtLeast(0L),
+                restartCount = restartCount,
+                sessionId = sessionId
+            )
+            context.accumulatedPausedDurationNanos = elapsedDurationNanos - activeDurationNanos
+            when (lifecycle) {
+                PracticeSessionLifecycle.ACTIVE -> Unit
+                PracticeSessionLifecycle.PAUSED -> {
+                    context.pauseStartedTimestampNanos = nowTimestampNanos
+                    context.lifecycle = PracticeSessionLifecycle.PAUSED
+                }
+                PracticeSessionLifecycle.FINALIZING -> context.lifecycle = PracticeSessionLifecycle.FINALIZING
+                PracticeSessionLifecycle.INVALIDATED -> context.invalidate()
+                PracticeSessionLifecycle.FINALIZED -> context.finalize(nowTimestampNanos)
+            }
+            return context
         }
     }
 }
@@ -175,6 +213,7 @@ data class FinalizedAssessment(
 data class AssessmentTimelineEvent(
     val eventId: String,
     val sessionId: String,
+    val eventOrdinal: Long = -1L,
     val loopId: String?,
     val sequenceIndex: Int,
     val expectedNote: Int?,
@@ -235,9 +274,21 @@ class AssessmentTimeline(
         require(events.none { it.eventId == event.eventId }) {
             "Duplicate timeline event ID: ${event.eventId}"
         }
-        events += event
-        listeners.toList().forEach { it(event) }
-        return event
+        val nextOrdinal = events.maxOfOrNull { it.eventOrdinal }?.plus(1L) ?: 0L
+        val normalized = if (event.eventOrdinal < 0L) {
+            event.copy(eventOrdinal = nextOrdinal)
+        } else {
+            require(event.eventOrdinal == nextOrdinal) {
+                "Timeline event ordinal must be monotonic"
+            }
+            event
+        }
+        require(events.none { it.eventOrdinal == normalized.eventOrdinal }) {
+            "Duplicate timeline event ordinal: ${normalized.eventOrdinal}"
+        }
+        events += normalized
+        listeners.toList().forEach { it(normalized) }
+        return normalized
     }
 
     @Synchronized
@@ -251,9 +302,22 @@ class AssessmentTimeline(
     fun snapshot(): List<AssessmentTimelineEvent> = events.toList()
 
     @Synchronized
+    fun sessionId(): String? = canonicalSessionId ?: events.firstOrNull()?.sessionId
+
+    @Synchronized
     fun clear() {
         events.clear()
         canonicalSessionId = null
+    }
+
+    @Synchronized
+    fun restore(sessionId: String, restoredEvents: List<AssessmentTimelineEvent>) {
+        require(sessionId.isNotBlank())
+        require(restoredEvents.all { it.sessionId == sessionId })
+        require(restoredEvents.map { it.eventOrdinal }.distinct().size == restoredEvents.size)
+        clear()
+        bindToSession(sessionId)
+        events += restoredEvents.sortedBy { it.eventOrdinal }
     }
 
     @Synchronized

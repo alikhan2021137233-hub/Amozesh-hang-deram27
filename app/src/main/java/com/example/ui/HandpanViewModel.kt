@@ -3,6 +3,7 @@ package com.example.ui
 import android.app.Application
 import android.content.Context
 import android.net.Uri
+import android.os.Looper
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.audio.AmbienceEngine
@@ -41,6 +42,15 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 enum class AppScreen {
     HOME,
@@ -56,7 +66,8 @@ data class AppUiState(
     val currentScreen: AppScreen = AppScreen.HOME,
     val selectedCategory: PatternCategory = PatternCategory.BEGINNER,
     val currentPattern: HandpanPattern? = null,
-    val defaultPracticeInputMode: PracticeInputMode = PracticeInputMode.REAL_HANDPAN,
+    val
+ defaultPracticeInputMode: PracticeInputMode = PracticeInputMode.REAL_HANDPAN,
     val showOnboarding: Boolean = false,
     val masterVolume: Float = 1.0f,
     val metronomeVolume: Float = 0.8f,
@@ -98,6 +109,8 @@ class HandpanViewModel(application: Application) : AndroidViewModel(application)
         database.recordingTrackDao()
         , database
     )
+    private val assessmentRecoveryCoordinator =
+        com.example.data.repository.AssessmentRecoveryCoordinator(repository)
     val scoreIngestionUseCase = ScoreIngestionUseCase(store = repository)
 
     val hapticHelper = HapticHelper(context)
@@ -147,7 +160,13 @@ class HandpanViewModel(application: Application) : AndroidViewModel(application)
     val appUiState: StateFlow<AppUiState> = _appUiState.asStateFlow()
     private val _transcriptionState = MutableStateFlow(TranscriptionUiState())
     val transcriptionState: StateFlow<TranscriptionUiState> = _transcriptionState.asStateFlow()
+    private val _recoverableAssessments = MutableStateFlow<List<com.example.data.local.AssessmentSessionEntity>>(emptyList())
+    val recoverableAssessments: StateFlow<List<com.example.data.local.AssessmentSessionEntity>> =
+        _recoverableAssessments.asStateFlow()
     private var transcriptionJob: kotlinx.coroutines.Job? = null
+    private val assessmentPersistenceMutex = Mutex()
+    private val assessmentWriteChannel = Channel<suspend () -> Unit>(Channel.UNLIMITED)
+    private val assessmentWriteScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     val allPatterns: StateFlow<List<HandpanPattern>> = repository.allPatterns
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -173,6 +192,11 @@ class HandpanViewModel(application: Application) : AndroidViewModel(application)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     init {
+        assessmentWriteScope.launch {
+            for (write in assessmentWriteChannel) {
+                assessmentPersistenceMutex.withLock { write() }
+            }
+        }
         practiceEngine.onRoundCompleted = { pattern, bpm, elapsedSeconds ->
             if (practiceEngine.uiState.value.inputMode == PracticeInputMode.VIRTUAL_HANDPAN) {
                 viewModelScope.launch {
@@ -187,8 +211,61 @@ class HandpanViewModel(application: Application) : AndroidViewModel(application)
                 validity = assessment.quality.validity.name,
                 metrics = assessment.metrics
             )
-            viewModelScope.launch {
-                repository.persistFinalizedAssessment(assessment, evidence)
+            val finalTimelinePayload = com.example.model.AssessmentTimelineCodec.encode(
+                practiceEngine.acousticEvaluator.timeline
+            )
+            enqueueAssessmentWrite {
+                repository.beginFinalization(assessment.sessionId)
+                repository.persistFinalizedAssessment(assessment, evidence, finalTimelinePayload)
+            }
+        }
+        practiceEngine.onAssessmentStarted = { session, bpm, inputMode ->
+            enqueueAssessmentWrite {
+                repository.startActiveAssessment(
+                    session = session,
+                    patternId = session.patternId,
+                    bpm = bpm,
+                    inputMode = inputMode,
+                    timeline = assessmentTimeline
+                )
+            }
+        }
+        practiceEngine.onAssessmentTimelineEvent = { event ->
+            enqueueAssessmentWrite {
+                repository.persistActiveTimeline(event.sessionId, assessmentTimeline)
+            }
+        }
+        practiceEngine.onAssessmentLifecycleChanged = { session, lifecycle ->
+            enqueueAssessmentWrite {
+                repository.updateActiveAssessmentLifecycle(
+                    sessionId = session.sessionId,
+                    lifecycle = lifecycle,
+                    pauseStartedAtEpochMs = if (lifecycle == com.example.model.PracticeSessionLifecycle.PAUSED) {
+                        System.currentTimeMillis()
+                    } else {
+                        null
+                    }
+                )
+            }
+
+        }
+        viewModelScope.launch {
+            val recoverable = assessmentRecoveryCoordinator.findRecoverable()
+            _recoverableAssessments.value = recoverable.map { it.session }
+            val selected = recoverable.firstOrNull()
+            if (selected != null) {
+                repository.getPatternById(selected.session.patternId)?.let { pattern ->
+                    practiceEngine.restoreAssessment(
+                        pattern = pattern,
+                        context = selected.context,
+                        timeline = selected.timeline,
+                        inputMode = selected.inputMode,
+                        bpm = selected.session.bpm
+                    )
+                    _appUiState.update {
+                        it.copy(currentPattern = pattern, currentScreen = AppScreen.PRACTICE)
+                    }
+                }
             }
         }
         val prefs = context.getSharedPreferences("handpan_prefs", Context.MODE_PRIVATE)
@@ -245,6 +322,46 @@ class HandpanViewModel(application: Application) : AndroidViewModel(application)
         metronomeEngine.setHapticEnabled(savedHaptic)
 
         refreshCustomSamplesMap()
+    }
+
+    private fun enqueueAssessmentWrite(write: suspend () -> Unit) {
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            check(assessmentWriteChannel.trySend(write).isSuccess) {
+                "Assessment persistence writer is unavailable"
+            }
+            return
+        }
+        runBlocking(Dispatchers.IO) {
+            val completed = CompletableDeferred<Result<Unit>>()
+            assessmentWriteChannel.send {
+                runCatching { write() }
+                    .onSuccess { completed.complete(Result.success(Unit)) }
+                    .onFailure { completed.complete(Result.failure(it)) }
+            }
+            completed.await().getOrThrow()
+        }
+    }
+
+    fun recoverAssessment(sessionId: String, onResult: (Boolean) -> Unit = {}) {
+        viewModelScope.launch {
+            val recovered = runCatching {
+                repository.recoverAssessment(sessionId, System.nanoTime())
+            }.getOrNull()
+            val success = recovered != null && repository.getPatternById(recovered.session.patternId)?.let { pattern ->
+                practiceEngine.restoreAssessment(
+                    pattern = pattern,
+                    context = recovered.context,
+                    timeline = recovered.timeline,
+                    inputMode = recovered.inputMode,
+                    bpm = recovered.session.bpm
+                )
+                _appUiState.update {
+                    it.copy(currentPattern = pattern, currentScreen = AppScreen.PRACTICE)
+                }
+                true
+            } == true
+            onResult(success)
+        }
     }
 
     fun refreshCustomSamplesMap() {
@@ -619,5 +736,7 @@ class HandpanViewModel(application: Application) : AndroidViewModel(application)
         performanceRecorder.stopPlayback()
         customSampleRecorder.release()
         audioEngine.release()
+        assessmentWriteChannel.close()
+        assessmentWriteScope.cancel()
     }
 }

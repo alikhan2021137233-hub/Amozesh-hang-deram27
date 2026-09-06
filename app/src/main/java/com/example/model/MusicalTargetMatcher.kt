@@ -194,4 +194,13 @@ class TargetRegistry {
         consumedObligations.clear()
         processedEventIds.clear()
     }
+
+    fun restore(targets: Collection<MusicalTarget>, processedEventIds: Collection<String>) {
+        clear()
+        targets.forEach { target ->
+            active[target.identity.targetId] = target
+            consumedObligations[target.identity.targetId] = target.consumedObligationIds.toMutableSet()
+        }
+        this.processedEventIds += processedEventIds
+    }
 }

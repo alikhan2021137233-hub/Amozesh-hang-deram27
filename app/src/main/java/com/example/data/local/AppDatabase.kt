@@ -16,10 +16,11 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         AssessmentEntity::class,
         EvidenceEntity::class,
         ProcessedAssessmentEntity::class,
+        AssessmentSessionEntity::class,
         MasteredSkillEntity::class,
         ImportedScoreEntity::class
     ],
-    version = 8,
+    version = 9,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -30,6 +31,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun assessmentDao(): AssessmentDao
     abstract fun evidenceDao(): EvidenceDao
     abstract fun processedAssessmentDao(): ProcessedAssessmentDao
+    abstract fun assessmentSessionDao(): AssessmentSessionDao
     abstract fun masteredSkillDao(): MasteredSkillDao
     abstract fun importedScoreDao(): ImportedScoreDao
 
@@ -187,6 +189,41 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `assessment_sessions` (
+                        `sessionId` TEXT NOT NULL PRIMARY KEY,
+                        `patternId` TEXT NOT NULL,
+                        `exerciseId` TEXT,
+                        `sourceId` TEXT,
+                        `sourceHash` TEXT,
+                        `lifecycle` TEXT NOT NULL,
+                        `startedAtEpochMs` INTEGER NOT NULL,
+                        `lastUpdatedAtEpochMs` INTEGER NOT NULL,
+                        `elapsedDurationMs` INTEGER NOT NULL,
+                        `activeDurationMs` INTEGER NOT NULL,
+                        `accumulatedPausedDurationMs` INTEGER NOT NULL,
+                        `pauseStartedAtEpochMs` INTEGER,
+                        `restartCount` INTEGER NOT NULL,
+                        `bpm` INTEGER NOT NULL,
+                        `inputMode` TEXT NOT NULL,
+                        `assessmentSchemaVersion` INTEGER NOT NULL,
+                        `eventSchemaVersion` INTEGER NOT NULL,
+                        `evaluationAlgorithmVersion` INTEGER NOT NULL,
+                        `timelinePayload` TEXT NOT NULL,
+                        `timelineRevision` INTEGER NOT NULL,
+                        `timelineChecksum` TEXT NOT NULL,
+                        `eventCount` INTEGER NOT NULL,
+                        `lastEventOrdinal` INTEGER NOT NULL,
+                        `finalizationState` TEXT NOT NULL,
+                        `finalizedAtEpochMs` INTEGER,
+                        `audioContinuityState` TEXT NOT NULL
+                    )
+                """.trimIndent())
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -201,6 +238,7 @@ abstract class AppDatabase : RoomDatabase() {
                 .addMigrations(MIGRATION_5_6)
                 .addMigrations(MIGRATION_6_7)
                 .addMigrations(MIGRATION_7_8)
+                .addMigrations(MIGRATION_8_9)
                 .build()
                 INSTANCE = instance
                 instance

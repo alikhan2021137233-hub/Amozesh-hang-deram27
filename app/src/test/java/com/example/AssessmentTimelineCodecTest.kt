@@ -39,7 +39,7 @@ class AssessmentTimelineCodecTest {
         val decoded = decode(timelineOf(event))
 
         assertSemanticEventEquals(event, decoded.snapshot().single())
-        assertFalse(decoded.snapshot().single().isConsumed)
+        assertTrue(decoded.snapshot().single().isConsumed)
     }
 
     @Test
@@ -99,7 +99,8 @@ class AssessmentTimelineCodecTest {
             obligationId = "obligation-1",
             targetNoteId = "target-note-1"
         )
-        val second = fullEvent("chord-2", 1, AssessmentEventType.WRONG).copy(
+            val second = fullEvent("chord-2", 1, AssessmentEventType.WRONG).copy(
+                eventOrdinal = 1L,
             obligationId = "obligation-2",
             targetNoteId = "target-note-2",
             expectedNote = 64,
@@ -116,8 +117,9 @@ class AssessmentTimelineCodecTest {
     }
 
     @Test
-    fun optionalFieldsAndEventOrderingUseSequenceIndex() {
-        val second = fullEvent("second", 1, AssessmentEventType.CORRECT).copy(
+    fun optionalFieldsAndEventOrderingUseEventOrdinal() {
+        val second = fullEvent("second", 0, AssessmentEventType.CORRECT).copy(
+            eventOrdinal = 1L,
             loopId = null,
             patternId = null,
             targetId = null,
@@ -137,16 +139,16 @@ class AssessmentTimelineCodecTest {
             targetBpm = null,
             durationNanos = null
         )
-        val first = fullEvent("first", 0, AssessmentEventType.CORRECT)
+        val first = fullEvent("first", 0, AssessmentEventType.CORRECT).copy(eventOrdinal = 0L)
         val timeline = AssessmentTimeline().also {
-            it.append(second)
             it.append(first)
+            it.append(second)
         }
         val encoded = AssessmentTimelineCodec.encode(timeline)
         val decoded = decode(encoded).snapshot()
 
         assertEquals(encoded, AssessmentTimelineCodec.encode(timeline))
-        assertEquals(listOf(0, 1), decoded.map { it.sequenceIndex })
+        assertEquals(listOf(0, 0), decoded.map { it.sequenceIndex })
         assertEquals(listOf("first", "second"), decoded.map { it.eventId })
         assertSemanticEventEquals(first, decoded[0])
         assertSemanticEventEquals(second, decoded[1])
@@ -165,11 +167,19 @@ class AssessmentTimelineCodecTest {
             it.append(second)
         }
         val timelineB = AssessmentTimeline().also {
-            it.append(second.copy(expectedNotes = linkedSetOf(3, 4)))
             it.append(first.copy(expectedNotes = linkedSetOf(1, 2)))
+            it.append(second.copy(expectedNotes = linkedSetOf(3, 4)))
         }
 
         assertEquals(AssessmentTimelineCodec.encode(timelineA), AssessmentTimelineCodec.encode(timelineB))
+    }
+
+    @Test
+    fun consumedFalseRoundTripsWithoutBeingRecomputed() {
+        val event = fullEvent("not-consumed", 0, AssessmentEventType.CORRECT)
+            .copy(isConsumed = false)
+
+        assertFalse(decode(timelineOf(event)).snapshot().single().isConsumed)
     }
 
     @Test
@@ -195,12 +205,12 @@ class AssessmentTimelineCodecTest {
 
         val duplicateSequence = JSONObject(validPayload())
         duplicateSequence.getJSONArray("events").getJSONObject(1)
-            .put("sequenceIndex", 0)
+            .put("eventOrdinal", 0)
         assertFailure(duplicateSequence.toString())
 
         val nonContiguousSequence = JSONObject(validPayload())
         nonContiguousSequence.getJSONArray("events").getJSONObject(1)
-            .put("sequenceIndex", 2)
+            .put("eventOrdinal", 2)
         assertFailure(nonContiguousSequence.toString())
 
         val wrongSession = JSONObject(validPayload())
@@ -217,7 +227,7 @@ class AssessmentTimelineCodecTest {
     @Test
     fun removingEachRequiredEventFieldFailsExplicitly() {
         listOf(
-            "eventId", "sessionId", "assessmentSessionId", "sequenceIndex", "eventType",
+            "eventId", "sessionId", "assessmentSessionId", "eventOrdinal", "sequenceIndex", "eventType",
             "expectedNotes", "confidence", "source", "sessionValidity"
         ).forEach { field ->
             val payload = JSONObject(singleEventPayload())
@@ -245,7 +255,7 @@ class AssessmentTimelineCodecTest {
         assertFailure(invalidConfidence.toString())
 
         val negativeSequence = JSONObject(singleEventPayload())
-        negativeSequence.getJSONArray("events").getJSONObject(0).put("sequenceIndex", -1)
+        negativeSequence.getJSONArray("events").getJSONObject(0).put("eventOrdinal", -1)
         assertFailure(negativeSequence.toString())
     }
 
@@ -288,6 +298,35 @@ class AssessmentTimelineCodecTest {
     }
 
     @Test
+    fun decodeUsesEventOrdinalWhenSequenceIndexDiffers() {
+        val first = fullEvent("first", 99, AssessmentEventType.CORRECT).copy(eventOrdinal = 0L)
+        val second = fullEvent("second", 1, AssessmentEventType.WRONG).copy(eventOrdinal = 1L)
+        val payload = JSONObject(AssessmentTimelineCodec.encode(AssessmentTimeline().also {
+            it.append(first)
+            it.append(second)
+        }))
+        val events = payload.getJSONArray("events")
+        val firstJson = events.getJSONObject(0)
+        val secondJson = events.getJSONObject(1)
+        events.put(0, secondJson)
+        events.put(1, firstJson)
+
+        val decoded = decode(payload.toString()).snapshot()
+
+        assertEquals(listOf(0L, 1L), decoded.map { it.eventOrdinal })
+        assertEquals(listOf("first", "second"), decoded.map { it.eventId })
+    }
+
+    @Test
+    fun consumedStateRoundTripsExactly() {
+        val consumed = fullEvent("consumed", 0, AssessmentEventType.CORRECT).copy(isConsumed = true)
+        val pending = fullEvent("pending", 1, AssessmentEventType.EXPECTED).copy(isConsumed = false)
+        val decoded = decode(timelineOf(consumed, pending)).snapshot()
+
+        assertEquals(listOf(true, false), decoded.map { it.isConsumed })
+    }
+
+    @Test
     fun codecHandlesFiveHundredEventsWithoutChangingOrder() {
         val timeline = AssessmentTimeline().also { timeline ->
             repeat(500) { index -> timeline.append(fullEvent("event-$index", index, AssessmentEventType.CORRECT)) }
@@ -325,6 +364,7 @@ class AssessmentTimelineCodecTest {
         com.example.model.AssessmentTimelineEvent(
             eventId = eventId,
             sessionId = "session-1",
+            eventOrdinal = sequenceIndex.toLong(),
             loopId = "loop-1",
             sequenceIndex = sequenceIndex,
             expectedNote = 1,
@@ -359,6 +399,7 @@ class AssessmentTimelineCodecTest {
     private fun assertSemanticEventEquals(expected: com.example.model.AssessmentTimelineEvent, actual: com.example.model.AssessmentTimelineEvent) {
         assertEquals(expected.eventId, actual.eventId)
         assertEquals(expected.sessionId, actual.sessionId)
+        assertEquals(expected.eventOrdinal, actual.eventOrdinal)
         assertEquals(expected.assessmentSessionId, actual.assessmentSessionId)
         assertEquals(expected.loopId, actual.loopId)
         assertEquals(expected.sequenceIndex, actual.sequenceIndex)
