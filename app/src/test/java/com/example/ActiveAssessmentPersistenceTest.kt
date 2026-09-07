@@ -179,4 +179,40 @@ class ActiveAssessmentPersistenceTest {
         assertEquals(original, database.assessmentSessionDao().getBySessionId(context.sessionId)!!.timelinePayload)
         }
     }
+
+    @Test
+    fun algorithmVersionMismatchIsRejected() {
+        runBlocking {
+            val context = PracticeSessionContext.start("pattern-1", 1_000L, sessionId = "session-version")
+            val timeline = AssessmentTimeline().also { it.bindToSession(context.sessionId) }
+            repository.startActiveAssessment(
+                context,
+                context.patternId,
+                80,
+                PracticeInputMode.REAL_HANDPAN,
+                timeline,
+                10_000L
+            )
+            database.openHelper.writableDatabase.execSQL(
+                "UPDATE assessment_sessions SET evaluationAlgorithmVersion = 99 WHERE sessionId = ?",
+                arrayOf(context.sessionId)
+            )
+
+            assertThrows(IllegalArgumentException::class.java) {
+                runBlocking { repository.recoverAssessment(context.sessionId, 20_000L) }
+            }
+        }
+    }
+
+    @Test
+    fun directFinalizeDaoCannotBypassFinalizing() = runBlocking {
+        val context = PracticeSessionContext.start("pattern-1", 1_000L, sessionId = "session-dao")
+        val timeline = AssessmentTimeline().also { it.bindToSession(context.sessionId) }
+        repository.startActiveAssessment(context, context.patternId, 80, PracticeInputMode.REAL_HANDPAN, timeline, 10_000L)
+
+        assertEquals(
+            0,
+            database.assessmentSessionDao().markFinalized(context.sessionId, 11_000L, "UNKNOWN")
+        )
+    }
 }

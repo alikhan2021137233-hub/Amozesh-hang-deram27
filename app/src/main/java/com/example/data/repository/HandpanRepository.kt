@@ -425,6 +425,9 @@ class HandpanRepository(
         require(session.eventSchemaVersion == ASSESSMENT_EVENT_SCHEMA_VERSION) {
             "Unsupported assessment event schema version: ${session.eventSchemaVersion}"
         }
+        require(session.evaluationAlgorithmVersion == EVALUATION_ALGORITHM_VERSION) {
+            "Unsupported assessment evaluation algorithm version: ${session.evaluationAlgorithmVersion}"
+        }
         validateSessionMetadata(session)
         val timeline = loadAssessmentTimeline(sessionId) ?: return null
         require(timeline.sessionId() == sessionId) {

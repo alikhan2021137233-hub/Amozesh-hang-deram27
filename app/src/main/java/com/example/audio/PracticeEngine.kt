@@ -135,7 +135,7 @@ class PracticeEngine(
         loadPattern(pattern)
         sessionContext = context
         restartCount = context.restartCount
-        val restoredBeat = timeline.snapshot().mapNotNull { it.beatPosition }.maxOrNull() ?: 0.0
+        val restoredBeat = recoveryStartBeat(timeline)
         resumeFromBeat = restoredBeat
         setInputMode(inputMode)
         _uiState.update {
@@ -150,6 +150,23 @@ class PracticeEngine(
         }
         acousticEvaluator.timeline.restore(context.sessionId, timeline.snapshot())
         recoveredTimelinePending = true
+    }
+
+    private fun recoveryStartBeat(timeline: com.example.model.AssessmentTimeline): Double {
+        val events = timeline.snapshot()
+        val consumedObligations = events.asSequence()
+            .filter { it.isConsumed }
+            .mapNotNull { it.obligationId }
+            .toSet()
+        val pendingBeat = events.asSequence()
+            .filter { it.eventType == com.example.model.AssessmentEventType.EXPECTED }
+            .filter { it.obligationId !in consumedObligations }
+            .mapNotNull { it.beatPosition }
+            .minOrNull()
+        return when {
+            pendingBeat != null -> (pendingBeat - PatternScheduler.BEAT_EPSILON).coerceAtLeast(0.0)
+            else -> events.mapNotNull { it.beatPosition }.maxOrNull() ?: 0.0
+        }
     }
 
     fun togglePlay() {

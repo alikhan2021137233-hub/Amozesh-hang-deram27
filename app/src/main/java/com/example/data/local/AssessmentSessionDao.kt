@@ -42,7 +42,7 @@ interface AssessmentSessionDao {
         audioContinuityState: String
     ): Int
 
-    @Query("UPDATE assessment_sessions SET lifecycle = 'FINALIZED', finalizationState = 'COMMITTED', finalizedAtEpochMs = :finalizedAtEpochMs, lastUpdatedAtEpochMs = :finalizedAtEpochMs, audioContinuityState = :audioContinuityState WHERE sessionId = :sessionId")
+    @Query("UPDATE assessment_sessions SET lifecycle = 'FINALIZED', finalizationState = 'COMMITTED', finalizedAtEpochMs = :finalizedAtEpochMs, lastUpdatedAtEpochMs = :finalizedAtEpochMs, audioContinuityState = :audioContinuityState WHERE sessionId = :sessionId AND lifecycle = 'FINALIZING'")
     suspend fun markFinalized(sessionId: String, finalizedAtEpochMs: Long, audioContinuityState: String): Int
 
     @Query("UPDATE assessment_sessions SET lifecycle = 'INVALIDATED', finalizationState = 'INVALIDATED', lastUpdatedAtEpochMs = :updatedAtEpochMs, audioContinuityState = 'UNKNOWN' WHERE sessionId = :sessionId AND lifecycle IN ('ACTIVE', 'PAUSED', 'FINALIZING')")

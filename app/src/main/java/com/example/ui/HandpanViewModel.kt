@@ -46,7 +46,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
@@ -167,6 +166,8 @@ class HandpanViewModel(application: Application) : AndroidViewModel(application)
     private val assessmentPersistenceMutex = Mutex()
     private val assessmentWriteChannel = Channel<suspend () -> Unit>(Channel.UNLIMITED)
     private val assessmentWriteScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val _assessmentPersistenceFailure = MutableStateFlow<Throwable?>(null)
+    val assessmentPersistenceFailure: StateFlow<Throwable?> = _assessmentPersistenceFailure.asStateFlow()
 
     val allPatterns: StateFlow<List<HandpanPattern>> = repository.allPatterns
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -194,7 +195,9 @@ class HandpanViewModel(application: Application) : AndroidViewModel(application)
     init {
         assessmentWriteScope.launch {
             for (write in assessmentWriteChannel) {
-                assessmentPersistenceMutex.withLock { write() }
+                runCatching {
+                    assessmentPersistenceMutex.withLock { write() }
+                }.onFailure { _assessmentPersistenceFailure.value = it }
             }
         }
         practiceEngine.onRoundCompleted = { pattern, bpm, elapsedSeconds ->
@@ -737,6 +740,5 @@ class HandpanViewModel(application: Application) : AndroidViewModel(application)
         customSampleRecorder.release()
         audioEngine.release()
         assessmentWriteChannel.close()
-        assessmentWriteScope.cancel()
     }
 }
