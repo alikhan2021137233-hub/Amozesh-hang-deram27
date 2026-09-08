@@ -498,15 +498,23 @@ class AcousticPracticeEvaluator(
                     )
                 )
             )
-        }.groupBy { it.identity.targetId }.map { (_, grouped) ->
+        }.groupBy { it.identity.targetId }.map { (targetId, grouped) ->
             val first = grouped.first()
-            val consumed = events.filter { it.targetId == first.identity.targetId && it.isConsumed }
+            val obligations = grouped.asSequence()
+                .flatMap { it.identity.obligations.asSequence() }
+                .distinctBy { it.obligationId }
+                .toList()
+            val resolved = events.asSequence()
+                .filter { it.targetId == targetId }
+                .filter { it.isConsumed || it.eventType == AssessmentEventType.MISSED }
                 .mapNotNull { it.obligationId }
                 .toSet()
+            val identity = first.identity.copy(obligations = obligations)
             first.copy(
-                consumedObligationIds = consumed,
-                consumedNotes = first.effectiveObligations
-                    .filter { it.obligationId in consumed }
+                identity = identity,
+                consumedObligationIds = resolved,
+                consumedNotes = identity.obligations
+                    .filter { it.obligationId in resolved }
                     .mapTo(linkedSetOf()) { it.noteNumber }
             )
         }

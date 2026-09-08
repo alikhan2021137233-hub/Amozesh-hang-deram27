@@ -3,6 +3,14 @@
         "/^\\./gradlew lint --console=plain$/": {
             "approve": true,
             "matchCommandLine": true
+        },
+        "/^pwd && printf '\\\\n-- git root --\\\\n' && git rev-parse --show-toplevel && printf '\\\\n-- branch/head --\\\\n' && git branch --show-current && git rev-parse HEAD && printf '\\\\n-- remotes --\\\\n' && git remote -v && printf '\\\\n-- status --\\\\n' && git status --short --branch && printf '\\\\n-- diff check --\\\\n' && git diff --check$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^printf '%s\\\\n' '-- key source files --' && rg --files app/src/main/java app/src/test/java \\| rg '\\(HandpanPattern\\|NoteEvent\\|MusicEvent\\|PracticeAssessment\\|AssessmentTimeline\\|AssessmentTimelineCodec\\|PracticeProgress\\|PracticeSessionContext\\|PracticeEngine\\|AcousticPracticeEvaluator\\|AudioAnalysisSession\\|PitchDetector\\|YinPitchDetector\\|OnsetAndPitchMatcher\\|HandpanSynthesizer\\|MetronomeEngine\\|AppDatabase\\|AssessmentSessionEntity\\|AssessmentSessionDao\\|AssessmentEntity\\|EvidenceEntity\\|ProcessedAssessmentEntity\\|HandpanRepository\\|AssessmentRecoveryCoordinator\\|HandpanViewModel\\|MainActivity\\|PracticeScreen\\|ExerciseLibraryScreen\\)' \\| sort$/": {
+            "approve": true,
+            "matchCommandLine": true
         }
     }
 }

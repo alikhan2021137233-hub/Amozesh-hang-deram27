@@ -45,11 +45,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 
 enum class AppScreen {
     HOME,
@@ -163,11 +161,13 @@ class HandpanViewModel(application: Application) : AndroidViewModel(application)
     val recoverableAssessments: StateFlow<List<com.example.data.local.AssessmentSessionEntity>> =
         _recoverableAssessments.asStateFlow()
     private var transcriptionJob: kotlinx.coroutines.Job? = null
-    private val assessmentPersistenceMutex = Mutex()
-    private val assessmentWriteChannel = Channel<suspend () -> Unit>(Channel.UNLIMITED)
     private val assessmentWriteScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val _assessmentPersistenceFailure = MutableStateFlow<Throwable?>(null)
     val assessmentPersistenceFailure: StateFlow<Throwable?> = _assessmentPersistenceFailure.asStateFlow()
+    private val assessmentWriteQueue = AssessmentWriteQueue(
+        scope = assessmentWriteScope,
+        onFailure = { _assessmentPersistenceFailure.value = it }
+    )
 
     val allPatterns: StateFlow<List<HandpanPattern>> = repository.allPatterns
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -193,13 +193,6 @@ class HandpanViewModel(application: Application) : AndroidViewModel(application)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     init {
-        assessmentWriteScope.launch {
-            for (write in assessmentWriteChannel) {
-                runCatching {
-                    assessmentPersistenceMutex.withLock { write() }
-                }.onFailure { _assessmentPersistenceFailure.value = it }
-            }
-        }
         practiceEngine.onRoundCompleted = { pattern, bpm, elapsedSeconds ->
             if (practiceEngine.uiState.value.inputMode == PracticeInputMode.VIRTUAL_HANDPAN) {
                 viewModelScope.launch {
@@ -329,19 +322,13 @@ class HandpanViewModel(application: Application) : AndroidViewModel(application)
 
     private fun enqueueAssessmentWrite(write: suspend () -> Unit) {
         if (Looper.myLooper() == Looper.getMainLooper()) {
-            check(assessmentWriteChannel.trySend(write).isSuccess) {
+            check(assessmentWriteQueue.tryEnqueue(write)) {
                 "Assessment persistence writer is unavailable"
             }
             return
         }
         runBlocking(Dispatchers.IO) {
-            val completed = CompletableDeferred<Result<Unit>>()
-            assessmentWriteChannel.send {
-                runCatching { write() }
-                    .onSuccess { completed.complete(Result.success(Unit)) }
-                    .onFailure { completed.complete(Result.failure(it)) }
-            }
-            completed.await().getOrThrow()
+            assessmentWriteQueue.enqueueAndAwait(write)
         }
     }
 
@@ -739,6 +726,9 @@ class HandpanViewModel(application: Application) : AndroidViewModel(application)
         performanceRecorder.stopPlayback()
         customSampleRecorder.release()
         audioEngine.release()
-        assessmentWriteChannel.close()
+        assessmentWriteScope.launch {
+            assessmentWriteQueue.closeAndDrain()
+            assessmentWriteScope.cancel()
+        }
     }
 }

@@ -19,6 +19,33 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
+internal object AssessmentRecoveryCursor {
+    fun startBeat(events: List<com.example.model.AssessmentTimelineEvent>): Double {
+        val resolvedObligations = events.asSequence()
+            .filter { it.isConsumed || it.eventType == com.example.model.AssessmentEventType.MISSED }
+            .mapNotNull { it.obligationId }
+            .toSet()
+        val pendingBeat = events.asSequence()
+            .filter { it.eventType == com.example.model.AssessmentEventType.EXPECTED }
+            .filter { event ->
+                val obligationKey = event.obligationId ?: event.eventId
+                obligationKey !in resolvedObligations && !event.isConsumed
+            }
+            .sortedWith(compareBy<com.example.model.AssessmentTimelineEvent> { it.beatPosition ?: Double.POSITIVE_INFINITY }
+                .thenBy { it.eventOrdinal })
+            .mapNotNull { it.beatPosition }
+            .firstOrNull()
+        return if (pendingBeat != null) {
+            (pendingBeat - PatternScheduler.BEAT_EPSILON).coerceAtLeast(0.0)
+        } else {
+            events.asSequence()
+                .sortedBy { it.eventOrdinal }
+                .mapNotNull { it.beatPosition }
+                .lastOrNull() ?: 0.0
+        }
+    }
+}
+
 data class PracticeUiState(
     val pattern: HandpanPattern? = null,
     val phase: PracticePhase = PracticePhase.IDLE,
@@ -153,20 +180,7 @@ class PracticeEngine(
     }
 
     private fun recoveryStartBeat(timeline: com.example.model.AssessmentTimeline): Double {
-        val events = timeline.snapshot()
-        val consumedObligations = events.asSequence()
-            .filter { it.isConsumed }
-            .mapNotNull { it.obligationId }
-            .toSet()
-        val pendingBeat = events.asSequence()
-            .filter { it.eventType == com.example.model.AssessmentEventType.EXPECTED }
-            .filter { it.obligationId !in consumedObligations }
-            .mapNotNull { it.beatPosition }
-            .minOrNull()
-        return when {
-            pendingBeat != null -> (pendingBeat - PatternScheduler.BEAT_EPSILON).coerceAtLeast(0.0)
-            else -> events.mapNotNull { it.beatPosition }.maxOrNull() ?: 0.0
-        }
+        return AssessmentRecoveryCursor.startBeat(timeline.snapshot())
     }
 
     fun togglePlay() {
