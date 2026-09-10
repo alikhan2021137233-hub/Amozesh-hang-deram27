@@ -37,7 +37,8 @@ data class DetectedPitchResult(
 
 enum class AudioCaptureErrorKind {
     STARTUP,
-    READ
+    READ,
+    UNAVAILABLE
 }
 
 data class AudioCaptureError(
@@ -97,13 +98,21 @@ open class PitchDetector(
             )
 
             if (audioRecord?.state != AudioRecord.STATE_INITIALIZED) {
-                Log.e(TAG, "AudioRecord initialization failed")
-                audioRecord?.release()
-                audioRecord = null
+                failStartup(
+                    onCaptureError,
+                    IllegalStateException("AudioRecord initialization failed")
+                )
                 return false
             }
 
             audioRecord?.startRecording()
+            if (audioRecord?.recordingState != AudioRecord.RECORDSTATE_RECORDING) {
+                failStartup(
+                    onCaptureError,
+                    IllegalStateException("AudioRecord did not enter recording state")
+                )
+                return false
+            }
             isListening = true
 
             trackingJob = detectorScope.launch {
@@ -201,12 +210,19 @@ open class PitchDetector(
             return true
         } catch (e: Exception) {
             Log.e(TAG, "Error starting pitch detection", e)
-            isListening = false
-            audioRecord?.release()
-            audioRecord = null
-            onCaptureError(AudioCaptureError(AudioCaptureErrorKind.STARTUP, e))
+            failStartup(onCaptureError, e)
             return false
         }
+    }
+
+    private fun failStartup(
+        onCaptureError: (AudioCaptureError) -> Unit,
+        cause: Throwable
+    ) {
+        isListening = false
+        audioRecord?.let { record -> runCatching { record.release() } }
+        audioRecord = null
+        onCaptureError(AudioCaptureError(AudioCaptureErrorKind.STARTUP, cause))
     }
 
     val isListeningNow: Boolean

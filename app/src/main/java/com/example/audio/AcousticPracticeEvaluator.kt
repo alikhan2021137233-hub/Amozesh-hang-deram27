@@ -198,7 +198,10 @@ class AcousticPracticeEvaluator(
             _state.update {
                 it.copy(
                     isListening = false,
-                    microphoneState = MicrophoneState.MIC_ERROR,
+                    microphoneState = when (error.kind) {
+                        AudioCaptureErrorKind.UNAVAILABLE -> MicrophoneState.MIC_UNAVAILABLE
+                        else -> MicrophoneState.MIC_ERROR
+                    },
                     assessmentActive = false
                 )
             }

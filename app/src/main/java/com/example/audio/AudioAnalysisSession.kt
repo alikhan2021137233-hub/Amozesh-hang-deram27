@@ -50,7 +50,15 @@ open class AudioAnalysisSession(
         activeSessionId = sessionId
         if (!listening) {
             microphoneLease = AudioResourceCoordinator.tryAcquire(sessionId)
-                ?: return Subscription({}, isActive = false)
+                ?: run {
+                    onCaptureError?.invoke(
+                        AudioCaptureError(
+                            AudioCaptureErrorKind.UNAVAILABLE,
+                            IllegalStateException("Microphone lease unavailable for session $sessionId")
+                        )
+                    )
+                    return Subscription({}, isActive = false)
+                }
         }
         listeners += listener
         if (!listening) {

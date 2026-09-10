@@ -15,6 +15,7 @@ import com.example.model.NoteEvent
 import com.example.model.NotePitchConfig
 import com.example.model.PracticeSessionContext
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -47,6 +48,24 @@ class SessionLifecycleIntegrityTest {
 
         assertEquals(firstEnd, session.endTimestampNanos)
         assertTrue(session.finalized)
+    }
+
+    @Test
+    fun invalidatedSessionCannotBeFinalizedAfterCaptureFailure() {
+        val session = PracticeSessionContext.start(
+            patternId = "capture-failure",
+            startTimestampNanos = 1_000L,
+            sessionId = "capture-failure-session"
+        )
+
+        session.invalidate()
+        session.finalize(9_000L)
+
+        assertEquals(
+            com.example.model.PracticeSessionLifecycle.INVALIDATED,
+            session.lifecycle
+        )
+        assertFalse(session.finalized)
     }
 
     @Test
