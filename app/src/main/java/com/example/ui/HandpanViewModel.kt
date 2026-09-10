@@ -413,7 +413,7 @@ class HandpanViewModel(application: Application) : AndroidViewModel(application)
 
     fun dismissSamplerDialog() {
         if (_appUiState.value.isRecordingSample) {
-            customSampleRecorder.stopRecording()
+            customSampleRecorder.cancelRecording()
         }
         _appUiState.update { it.copy(showSamplerDialog = false, isRecordingSample = false, recordingAmplitude = 0f) }
     }
@@ -452,12 +452,21 @@ class HandpanViewModel(application: Application) : AndroidViewModel(application)
                         ) 
                     }
                 }
+            },
+            onCancelled = {
+                _appUiState.update {
+                    it.copy(
+                        isRecordingSample = false,
+                        recordingAmplitude = 0f,
+                        sampleSuccessMessage = "ضبط لغو شد و فایل موقت حذف شد."
+                    )
+                }
             }
         )
     }
 
     fun stopRecordingCustomSample() {
-        customSampleRecorder.stopRecording()
+        customSampleRecorder.stopAndSave()
     }
 
     fun deleteCustomSample(noteNumber: Int) {

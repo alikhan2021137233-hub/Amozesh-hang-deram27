@@ -390,7 +390,11 @@ class AcousticPracticeEvaluator(
                 isEnabled = false,
                 isListening = false,
                 isSummaryDialogVisible = showSummary && it.totalStrikesEvaluated > 0,
-                microphoneState = MicrophoneState.MIC_IDLE,
+                microphoneState = when (it.microphoneState) {
+                    MicrophoneState.MIC_UNAVAILABLE,
+                    MicrophoneState.MIC_ERROR -> it.microphoneState
+                    else -> MicrophoneState.MIC_IDLE
+                },
                 assessmentActive = false
             )
         }

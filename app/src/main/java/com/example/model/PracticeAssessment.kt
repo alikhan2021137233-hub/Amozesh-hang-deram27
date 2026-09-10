@@ -117,7 +117,9 @@ class PracticeSessionContext private constructor(
     }
 
     fun finalize(timestampNanos: Long) {
-        if (finalized) return
+        if (lifecycle == PracticeSessionLifecycle.FINALIZED ||
+            lifecycle == PracticeSessionLifecycle.INVALIDATED
+        ) return
         val end = timestampNanos.coerceAtLeast(startTimestampNanos)
         if (lifecycle == PracticeSessionLifecycle.PAUSED) {
             val pauseStarted = pauseStartedTimestampNanos ?: end

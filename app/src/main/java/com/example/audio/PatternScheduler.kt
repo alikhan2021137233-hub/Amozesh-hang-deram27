@@ -47,6 +47,8 @@ class PatternScheduler {
             val orderedEvents = events.withIndex()
                 .sortedWith(compareBy<IndexedValue<NoteEvent>> { it.value.beatPosition }.thenBy { it.index })
                 .map { it.value }
+            val eventsByPosition = orderedEvents
+                .groupBy { Math.round(it.beatPosition * 1000.0) / 1000.0 }
             val clampedStart = startBar.coerceIn(1, totalBars)
             val clampedEnd = endBar.coerceIn(clampedStart, totalBars)
 
@@ -64,7 +66,8 @@ class PatternScheduler {
             }
 
             // 2. Add all event beat positions in range
-            orderedEvents.filter { it.beatPosition in (startBeat - BEAT_EPSILON)..(endBeat - BEAT_EPSILON) }
+            orderedEvents.asSequence()
+                .filter { it.beatPosition in (startBeat - BEAT_EPSILON)..(endBeat - BEAT_EPSILON) }
                 .forEach { event ->
                     beatPositions.add(Math.round(event.beatPosition * 1000.0) / 1000.0)
                 }
@@ -78,9 +81,7 @@ class PatternScheduler {
                 val isDownbeat = timeSignature.isGroupedAccent(beatInBarIndex) &&
                     Math.abs(pos - Math.floor(pos)) < BEAT_EPSILON
 
-                val matchingEvents = orderedEvents.filter {
-                    Math.abs(it.beatPosition - pos) < BEAT_EPSILON
-                }
+                val matchingEvents = eventsByPosition[pos].orEmpty()
 
                 val target = matchingEvents.takeIf { it.isNotEmpty() }?.let { targetEvents ->
                     val targetId = "$assessmentSessionId-$patternId-loop-$loopIndex-target-$sequenceIndex"

@@ -14,6 +14,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import com.example.model.Subdivision
+import com.example.model.HandpanTechnique
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
@@ -150,7 +151,7 @@ class HandpanTimingAndPatternTest {
             NoteEvent(noteNumber = 1, beatPosition = 0.0, duration = 1.0, velocity = 1.0f, accent = true, hand = "R"),
             NoteEvent(noteNumber = 3, beatPosition = 1.0, duration = 1.0, velocity = 0.85f, accent = false, hand = "L"),
             NoteEvent(noteNumber = 0, beatPosition = 2.0, duration = 1.0, isRest = true),
-            NoteEvent(noteNumber = 5, beatPosition = 3.0, duration = 1.0, velocity = 0.85f, accent = false, hand = "R")
+            NoteEvent(noteNumber = 5, beatPosition = 3.0, duration = 1.0, velocity = 0.85f, accent = false, hand = "R", technique = HandpanTechnique.TAK)
         )
 
         val json = PatternEntity.encodeEventsJson(originalEvents)
@@ -166,6 +167,14 @@ class HandpanTimingAndPatternTest {
 
         assertTrue(parsed[2].isRest)
         assertEquals(5, parsed[3].noteNumber)
+        assertEquals(HandpanTechnique.TAK, parsed[3].technique)
+    }
+
+    @Test
+    fun legacyPatternJsonInfersTechniqueWithoutTechniqueField() {
+        val parsed = PatternEntity.parseEventsJson("[{\"n\":9,\"b\":0.0}]")
+
+        assertEquals(HandpanTechnique.SLAP, parsed.single().technique)
     }
 
     @Test

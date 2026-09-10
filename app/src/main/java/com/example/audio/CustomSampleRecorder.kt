@@ -23,10 +23,14 @@ import kotlin.math.abs
  */
 class CustomSampleRecorder(private val context: Context) {
 
+    enum class StopMode { SAVE, CANCEL }
+
     private var audioRecord: AudioRecord? = null
     private var recordingJob: Job? = null
     private var isRecording = false
     private var microphoneLease: AudioResourceCoordinator.Lease? = null
+    @Volatile
+    private var stopMode = StopMode.SAVE
 
     companion object {
         private const val TAG = "CustomSampleRecorder"
@@ -65,10 +69,11 @@ class CustomSampleRecorder(private val context: Context) {
         noteNumber: Int,
         maxDurationMs: Long = 3000L,
         onAmplitudeChange: (Float) -> Unit = {},
-        onFinished: (Boolean, File?) -> Unit
+        onFinished: (Boolean, File?) -> Unit,
+        onCancelled: () -> Unit = {}
     ) {
         if (isRecording) {
-            stopRecording()
+            cancelRecording()
         }
 
         microphoneLease = AudioResourceCoordinator.tryAcquire("custom-sample-recorder")
@@ -102,6 +107,7 @@ class CustomSampleRecorder(private val context: Context) {
             val tempRawFile = File(context.cacheDir, "temp_rec_${System.currentTimeMillis()}.pcm")
 
             audioRecord?.startRecording()
+            stopMode = StopMode.SAVE
             isRecording = true
 
             recordingJob = CoroutineScope(Dispatchers.IO).launch {
@@ -175,7 +181,16 @@ class CustomSampleRecorder(private val context: Context) {
                         return@launch
                     }
 
-                    // Convert PCM to WAV
+                    if (stopMode == StopMode.CANCEL) {
+                        tempRawFile.delete()
+                        withContext(Dispatchers.Main) {
+                            isRecording = false
+                            onCancelled()
+                        }
+                        return@launch
+                    }
+
+                    // Convert PCM to a temporary WAV, validate it, then replace the target atomically.
                     rawPcmToWav(tempRawFile, targetWavFile, SAMPLE_RATE, 1, 16)
                     tempRawFile.delete()
 
@@ -209,20 +224,26 @@ class CustomSampleRecorder(private val context: Context) {
         }
     }
 
-    fun stopRecording() {
+    fun stopAndSave() {
+        requestStop(StopMode.SAVE)
+    }
+
+    fun cancelRecording() {
+        requestStop(StopMode.CANCEL)
+    }
+
+    private fun requestStop(mode: StopMode) {
+        if (!isRecording) return
+        stopMode = mode
         isRecording = false
-        recordingJob?.cancel()
-        recordingJob = null
         try {
             audioRecord?.stop()
-            audioRecord?.release()
         } catch (e: Exception) {
             // ignore
         }
-        audioRecord = null
-        microphoneLease?.close()
-        microphoneLease = null
     }
+
+    fun stopRecording() = cancelRecording()
 
     fun release() {
         stopRecording()
@@ -230,14 +251,14 @@ class CustomSampleRecorder(private val context: Context) {
 
     private fun rawPcmToWav(rawFile: File, wavFile: File, sampleRate: Int, channels: Int, bitDepth: Int) {
         val rawDataSize = rawFile.length()
+        require(rawDataSize > 0L) { "Cannot write an empty WAV file" }
         val totalDataLen = rawDataSize + 36
         val byteRate = (sampleRate * channels * bitDepth) / 8
+        val tempWavFile = File(wavFile.parentFile, "${wavFile.name}.tmp")
 
-        if (wavFile.exists()) {
-            wavFile.delete()
-        }
-
-        RandomAccessFile(wavFile, "rw").use { raf ->
+        try {
+            RandomAccessFile(tempWavFile, "rw").use { raf ->
+                raf.setLength(0L)
             // RIFF header
             raf.writeBytes("RIFF")
             raf.writeInt(Integer.reverseBytes(totalDataLen.toInt()))
@@ -263,6 +284,15 @@ class CustomSampleRecorder(private val context: Context) {
                     raf.write(buffer, 0, read)
                 }
             }
+            }
+            require(tempWavFile.length() == rawDataSize + 44L) { "Invalid WAV length" }
+            if (wavFile.exists() && !wavFile.delete()) {
+                error("Could not replace existing sample")
+            }
+            require(tempWavFile.renameTo(wavFile)) { "Could not commit WAV file" }
+        } catch (error: Exception) {
+            tempWavFile.delete()
+            throw error
         }
     }
 }

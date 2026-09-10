@@ -21,7 +21,13 @@ data class NoteEvent(
     val velocity: Float = 0.85f,
     val accent: Boolean = false,
     val isRest: Boolean = false,
-    val hand: String? = null
+    val hand: String? = null,
+    val technique: HandpanTechnique = when {
+        isRest -> HandpanTechnique.REST
+        noteNumber == HandpanNote.SLAP_NUMBER -> HandpanTechnique.SLAP
+        noteNumber == HandpanNote.DING_NUMBER -> HandpanTechnique.DING
+        else -> HandpanTechnique.TONE
+    }
 ) {
     init {
         require(isRest || (noteNumber in 0..9)) {
@@ -36,7 +42,7 @@ data class NoteEvent(
     val isSlap: Boolean get() = (noteNumber == HandpanNote.SLAP_NUMBER && !isRest)
 
     val displaySymbol: String
-        get() = HandpanNote.getDisplaySymbol(noteNumber, isRest)
+        get() = NotationRenderer.render(noteNumber, technique = technique)
 
     val persianLabel: String
         get() = HandpanNote.getPersianLabel(noteNumber, isRest)

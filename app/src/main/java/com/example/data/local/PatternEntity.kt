@@ -5,6 +5,7 @@ import androidx.room.PrimaryKey
 import com.example.model.DifficultyLevel
 import com.example.model.HandpanPattern
 import com.example.model.NoteEvent
+import com.example.model.HandpanTechnique
 import com.example.model.PatternCategory
 import com.example.model.Subdivision
 import com.example.model.TimeSignature
@@ -74,6 +75,7 @@ data class PatternEntity(
                 obj.put("a", e.accent)
                 obj.put("r", e.isRest)
                 if (e.hand != null) obj.put("h", e.hand)
+                obj.put("t", e.technique.name)
                 array.put(obj)
             }
             return array.toString()
@@ -93,7 +95,17 @@ data class PatternEntity(
                             velocity = obj.optDouble("v", 0.85).toFloat(),
                             accent = obj.optBoolean("a", false),
                             isRest = obj.optBoolean("r", false),
-                            hand = if (obj.has("h")) obj.getString("h") else null
+                            hand = if (obj.has("h")) obj.getString("h") else null,
+                            technique = runCatching {
+                                HandpanTechnique.valueOf(obj.optString("t"))
+                            }.getOrElse {
+                                when {
+                                    obj.optBoolean("r", false) -> HandpanTechnique.REST
+                                    obj.optInt("n", 1) == 9 -> HandpanTechnique.SLAP
+                                    obj.optInt("n", 1) == 0 -> HandpanTechnique.DING
+                                    else -> HandpanTechnique.TONE
+                                }
+                            }
                         )
                     )
                 }
