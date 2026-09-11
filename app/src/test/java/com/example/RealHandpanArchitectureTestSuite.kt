@@ -56,6 +56,17 @@ private class CountingAudioAnalysisSession : com.example.audio.AudioAnalysisSess
     }
 }
 
+private class NoOpAudioAnalysisSession : com.example.audio.AudioAnalysisSession() {
+    override fun acquire(
+        scaleConfig: NotePitchConfig,
+        onStrike: (DetectedStrikeEvent) -> Unit,
+        onPitch: (com.example.audio.DetectedPitchResult) -> Unit,
+        sessionId: String
+    ): Subscription {
+        return Subscription({}, isActive = false)
+    }
+}
+
 class FakePracticeClock(var initialNanos: Long = 1_000_000_000L) : PracticeClock {
     var currentNanos = initialNanos
     override fun nowNanos(): Long = currentNanos
@@ -99,7 +110,12 @@ class RealHandpanArchitectureTestSuite {
     fun setUp() {
         fakeClock = FakePracticeClock()
         fakeAudio = FakeAudioEngine()
-        evaluator = AcousticPracticeEvaluator(clock = fakeClock)
+        val noOpSession = NoOpAudioAnalysisSession()
+        evaluator = AcousticPracticeEvaluator(
+            clock = fakeClock,
+            analysisSession = noOpSession,
+            ownsAnalysisSession = false
+        )
         practiceEngine = PracticeEngine(
             audioEngine = fakeAudio,
             clock = fakeClock,
